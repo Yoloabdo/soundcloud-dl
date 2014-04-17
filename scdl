@@ -9,24 +9,6 @@ echo ' *------------------------------------------------------------------------
 echo '|      SoundcloudMusicDownloader(cURL/Wget version) |   FlyinGrub rework      |'
 echo ' *---------------------------------------------------------------------------*'
 
-function config() {
-    if [ -f /$HOME/.scdl.cfg ]; then
-        source /$HOME/.scdl.cfg
-        if [ "$continue" = "true" ]; then
-            cont=continue
-        else
-            cont=exit
-        fi
-        cd $pathtomusic
-        echo "[i] Path where i will download music : $pathtomusic" 
-        echo "[i] I will $cont if i found a file that already exist"
-    else
-        echo '[i] The config file do not exist...'
-        echo '[i] Please run the Installer First or add The sample config file'
-        exit
-    fi
-}
-
 function settags() {
     artist=$1
     title=$2
@@ -41,7 +23,7 @@ function settags() {
     fi
     if [ "$writags" = "1" ] ; then
         eyeD3 --remove-all "$filename" &>/dev/null
-        eyeD3 --add-image="/tmp/1.jpg:ILLUSTRATION" --add-image="/tmp/1.jpg:MEDIA" --add-image="/tmp/1.jpg:ICON" --add-image="/tmp/1.jpg:FRONT_COVER" -a "$artist" -Y $(date +%Y) -G "$genre" -t "$title" -A "$album" -2 --force-update "$filename" &>/dev/null
+        eyeD3 --add-image="/tmp/1.jpg:ILLUSTRATION" --add-image="/tmp/1.jpg:ICON" -a "$artist" -Y $(date +%Y) -G "$genre" -t "$title" -A "$album" -2 --force-update "$filename" &>/dev/null
         echo '[i] Setting tags finished!'
     else
         echo "[i] Setting tags skipped (please install eyeD3)"
@@ -57,17 +39,17 @@ function downsong() { #Done!
     else
         page=$(wget --max-redirect=1000 --trust-server-names --progress=bar -U -O- 'Mozilla/5.0' "$url")
     fi
-    id=$(echo "$page" | grep -v "small" | grep -oE "data-sc-track=.[0-9]*" | grep -oE "[0-9].*" | sort | uniq)
-    title=$(echo -e "$page" | grep -A1 "<em itemprop=\"name\">" | tail -n1 | sed 's/\\u0026/\&/g' | recode html..u8)
+    id=$(echo "$page" | grep -v "small" | grep -oE "data-sc-track=.[0-9]*" | grep -oE "[0-9]*" | sort | uniq)
+    title=$(echo -e "$page" | grep -A1 "<em itemprop=\"name\">" | tail -n1 | sed 's/\\u0026/\&/g' | recode html..UTF-16)
     filename=$(echo "$title".mp3 | tr '*/\?"<>|' '+       ' )
     songurl=$(curl -s -L --user-agent 'Mozilla/5.0' "https://api.sndcdn.com/i1/tracks/$id/streams?client_id=$clientID" | cut -d '"' -f 4 | sed 's/\\u0026/\&/g')
-    artist=$(echo "$page" | grep byArtist | sed 's/.*itemprop="name">\([^<]*\)<.*/\1/g' | recode html..u8)
+    artist=$(echo "$page" | grep byArtist | sed 's/.*itemprop="name">\([^<]*\)<.*/\1/g' | recode html..UTF-16)
     imageurl=$(echo "$page" | tr ">" "\n" | grep -A1 '<div class="artwork-download-link"' | cut -d '"' -f 2 | tr " " "\n" | grep 'http' | sed 's/original/t500x500/g' | sed 's/png/jpg/g' )
-    genre=$(echo "$page" | tr ">" "\n" | grep -A1 '<span class="genre search-deprecation-notification" data="/tags/' | tr ' ' "\n" | grep '</span' | cut -d "<" -f 1 | recode html..u8)
+    genre=$(echo "$page" | tr ">" "\n" | grep -A1 '<span class="genre search-deprecation-notification" data="/tags/' | tr ' ' "\n" | grep '</span' | cut -d "<" -f 1 | recode html..UTF-16)
     # DL
     echo ""
     if [ -e "$filename" ]; then
-        echo "[!] The song $filename has already been downloaded..."  && $cont
+        echo "[!] The song $filename has already been downloaded..."  && exit
     else
         echo "[-] Downloading $title..."
     fi
@@ -79,34 +61,6 @@ function downsong() { #Done!
     settags "$artist" "$title" "$filename" "$genre" "$imageurl"
     echo "[i] Downloading of $filename finished"
     echo ''
-}
-
-function downlike() {
-    artistnm=$(echo "$1" | cut -d '/' -f 4)
-    likeurl=$(echo "http://soundcloud.com/$artistnm")
-    echo "[i] Grabbing artists page"
-    if $curlinstalled; then
-        page=$(curl -L -s --user-agent 'Mozilla/5.0' $likeurl)
-    else
-        page=$(wget --max-redirect=1000 --trust-server-names -q -U 'Mozilla/5.0' $likeurl)
-    fi
-    clientID=$(echo "$page" | grep "clientID" | tr "," "\n" | grep "clientID" | cut -d '"' -f 4)
-    artistID=$(echo "$page" | tr "," "\n" | grep "trackOwnerId" | head -n 1 | cut -d ":" -f 2)
-    if $curlinstalled; then
-        likepage=$(curl -L -s --user-agent 'Mozilla/5.0' "http://api.soundcloud.com/users/$artistID/favorites?client_id=$clientID" | sed '1,2d' | grep "<permalink-url>" | sed '1d' | sed -n '1~2p' | sed '51d')
-    else
-        likepage=$(wget --max-redirect=1000 --trust-server-names -q -U 'Mozilla/5.0' "http://api.soundcloud.com/users/$artistID/favorites?client_id=$clientID")
-    fi
-    songcount=$(echo "$likepage" | wc -l)
-    echo "[i] Found $songcount songs! (50 is max)"
-    for (( i=1; i <= $songcount; i++ ))
-    do
-        echo ''
-        echo "---------- Downloading Song n°$i ----------"
-        thisongurl=$(echo "$likepage" | sed -n "$i"p | cut -d ">" -f 2 | cut -d "<" -f 1)
-        downsong "$thisongurl"
-        echo "----- Downloading Song n°$i finished ------"
-    done
 }
 
 function downallsongs() {
@@ -122,9 +76,9 @@ function downallsongs() {
     artistID=$(echo "$page" | tr "," "\n" | grep "trackOwnerId" | head -n 1 | cut -d ":" -f 2) 
     echo "[i] Grabbing all song info"
     if $curlinstalled; then
-        songs=$(curl -s -L --user-agent 'Mozilla/5.0' "https://api.sndcdn.com/e1/users/$artistID/sounds?limit=256&offset=0&linked_partitioning=1&client_id=$clientID" | tr -d "\n" | sed 's/<\/stream-item>/\n/g')
+        songs=$(curl -s -L --user-agent 'Mozilla/5.0' "https://api.sndcdn.com/e1/users/$artistID/sounds?limit=256&offset=0&linked_partitioning=1&client_id=$clientID" | tr -d "\n" | sed 's/<stream-item>/\n/g' | sed '1d' )
     else 
-        songs=$(wget -q --max-redirect=1000 --trust-server-names -O- -U 'Mozilla/5.0' "https://api.sndcdn.com/e1/users/$artistID/sounds?limit=256&offset=0&linked_partitioning=1&client_id=$clientID" | tr -d "\n" | sed 's/<\/stream-item>/\n/g')
+        songs=$(wget -q --max-redirect=1000 --trust-server-names -O- -U 'Mozilla/5.0' "https://api.sndcdn.com/e1/users/$artistID/sounds?limit=256&offset=0&linked_partitioning=1&client_id=$clientID" | tr -d "\n" | sed 's/<stream-item>/\n/g' | sed '1d')
     fi
     songcount=$(echo "$songs" | wc -l)
     echo "[i] Found $songcount songs! (200 is max)"
@@ -145,7 +99,7 @@ function downallsongs() {
             title=$(echo -e "$songs" | sed -n "$i"p | tr ">" "\n" | grep "</title" | cut -d "<" -f 1 | recode html..u8)
             filename=$(echo "$title".mp3 | tr '*/\?"<>|' '+       ' )
             if [ -e "$filename" ]; then
-                echo "[!] The song $filename has already been downloaded..."  && $cont
+                echo "[!] The song $filename has already been downloaded..."  && exit
             fi
             artist=$(echo "$songs" | sed -n "$i"p | tr ">" "\n" | grep "</username" | cut -d "<" -f 1 | recode html..u8)
             genre=$(echo "$songs" | sed -n "$i"p | tr ">" "\n" | grep "</genre" | cut -d "<" -f 1 | recode html..u8)
@@ -180,11 +134,7 @@ function downgroup() {
     fi
     groupid=$(echo "$groupage" | grep "html5-code-groups" | tr " " "\n" | grep "html5-code-groups-" | cut -d '"' -f 2 | sed '2d' | cut -d '-' -f 4)
     clientID=$(echo "$groupage" | grep "clientID" | tr "," "\n" | grep "clientID" | cut -d '"' -f 4)
-    if $curlinstalled; then
-        trackspage=$(curl -L -s --user-agent 'Mozilla/5.0' "http://api.soundcloud.com/groups/$groupid/tracks.json?client_id=$clientID" | tr "}" "\n")
-    else
-        trackspage=$(wget --max-redirect=1000 --trust-server-names --progress=bar -U -O- 'Mozilla/5.0' "http://api.soundcloud.com/groups/$groupid/tracks.json?client_id=$clientID" | tr "}" "\n")
-    fi
+    trackspage=$(curl -L -s --user-agent 'Mozilla/5.0' "http://api.soundcloud.com/groups/$groupid/tracks.json?client_id=$clientID" | tr "}" "\n")
     trackspage=$(echo "$trackspage" | tr "," "\n" | grep '"permalink_url":' | sed '1d' | sed -n '1~2p')
     songcount=$(echo "$trackspage" | wc -l)
     echo "[i] Found $songcount songs!"
@@ -222,21 +172,21 @@ function downset() {
         id=$(echo "$setsongs" | sed -n "$numcursong"p)
         title=$(echo -e "$page" | grep data-sc-track | grep $id | grep -oE 'rel=.nofollow.>[^<]*' | sed 's/rel="nofollow">//' | sed 's/\\u0026/\&/g' | recode html..u8)
         if [[ "$title" == "Play" ]] ; then
-            title=$(echo -e "$page" | grep $id | grep id | grep -oE "\"title\":\"[^\"]*" | sed 's/"title":"//' | sed 's/\\u0026/\&/g' | recode html..u8)
+        title=$(echo -e "$page" | grep $id | grep id | grep -oE "\"title\":\"[^\"]*" | sed 's/"title":"//' | sed 's/\\u0026/\&/g' | recode html..u8)
         fi
         artist=$(echo "$page" | grep -A3 $id | grep byArtist | cut -d"\"" -f2 | recode html..u8)
         filename=$(echo "$title".mp3 | tr '*/\?"<>|' '+       ' )      
         if [ -e "$filename" ]; then
-            echo "[!] The song $filename has already been downloaded..."  && $cont
+            echo "[!] The song $filename has already been downloaded..."  && exit
         else
             echo "[-] Downloading $title..."
         fi
         #----------settags-------#
         pageurl=$(echo "$page" | grep -A3 $id | grep url | cut -d"\"" -f2)
         if $curlinstalled; then
-            songpage=$(curl -s -L --user-agent 'Mozilla/5.0' "$pageurl")
+        songpage=$(curl -s -L --user-agent 'Mozilla/5.0' "$pageurl")
         else
-            songpage=$(wget --max-redirect=1000 --trust-server-names --progress=bar -U -O- 'Mozilla/5.0' "$pageurl")
+        songpage=$(wget --max-redirect=1000 --trust-server-names --progress=bar -U -O- 'Mozilla/5.0' "$pageurl")
         fi
         imageurl=$(echo "$songpage" | tr ">" "\n" | grep -A1 '<div class="artwork-download-link"' | cut -d '"' -f 2 | tr " " "\n" | grep 'http' | sed 's/original/t500x500/g' | sed 's/png/jpg/g' )
         genre=$(echo "$songpage" | tr ">" "\n" | grep -A1 '<span class="genre search-deprecation-notification" data="/tags/' | tr ' ' "\n" | grep '</span' | cut -d "<" -f 1 | recode html..u8)
@@ -332,7 +282,7 @@ command -v eyeD3 &>/dev/null || { echo "[!] eyeD3 needs to be installed to write
 soundurl=$(echo "$1" | sed 's-.*soundcloud.com/-http://soundcloud.com/-' | cut -d "?" -f 1 | grep 'soundcloud.com')
 
 echo "[i] Using URL $soundurl"
-config
+
 if [[ "$(echo "$soundurl" | cut -d "/" -f 4)" == "" ]] ; then
     echo "[!] Bad URL!"
     show_help 
@@ -340,9 +290,6 @@ if [[ "$(echo "$soundurl" | cut -d "/" -f 4)" == "" ]] ; then
 elif [[ "$(echo "$soundurl" | cut -d "/" -f 4)" == "groups" ]] ; then
     echo "[i] Detected download type : All song of the group"
     downgroup "$soundurl"
-elif [[ "$(echo "$soundurl" | cut -d "/" -f 5)" == "likes" ]] ; then
-    echo "[i] Detected download type : All of one user's like"
-    downlike "$soundurl"
 elif [[ "$(echo "$soundurl" | cut -d "/" -f 5)" == "" ]] ; then
     echo "[i] Detected download type : All of one user's songs"
     downallsongs "$soundurl"
