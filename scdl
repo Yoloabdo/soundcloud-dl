@@ -90,19 +90,19 @@ function downallsongs() {
     do
         playlist=$(echo -e "$songs"| sed -n "$i"p | tr ">" "\n" | grep "</kind" | cut -d "<" -f 1 | grep playlist)
         if [ "$playlist" = "playlist" ] ; then 
-            playlisturl=$(echo -e "$songs" | sed -n "$i"p | tr ">" "\n" | grep "</permalink-url" | cut -d "<" -f 1 | head -n 1 | recode html..u8)
+            playlisturl=$(echo -e "$songs" | sed -n "$i"p | tr ">" "\n" | grep "</permalink-url" | cut -d "<" -f 1 | head -n 1 | recode html..UTF-16)
             echo "[i] *--------Donwloading a set----------*"
             downset $playlisturl
             echo "[i] *-------- Set Downloaded -----------*"
             echo ''
         else
-            title=$(echo -e "$songs" | sed -n "$i"p | tr ">" "\n" | grep "</title" | cut -d "<" -f 1 | recode html..u8)
+            title=$(echo -e "$songs" | sed -n "$i"p | tr ">" "\n" | grep "</title" | cut -d "<" -f 1 | recode html..UTF-16)
             filename=$(echo "$title".mp3 | tr '*/\?"<>|' '+       ' )
             if [ -e "$filename" ]; then
                 echo "[!] The song $filename has already been downloaded..."  && exit
             fi
-            artist=$(echo "$songs" | sed -n "$i"p | tr ">" "\n" | grep "</username" | cut -d "<" -f 1 | recode html..u8)
-            genre=$(echo "$songs" | sed -n "$i"p | tr ">" "\n" | grep "</genre" | cut -d "<" -f 1 | recode html..u8)
+            artist=$(echo "$songs" | sed -n "$i"p | tr ">" "\n" | grep "</username" | cut -d "<" -f 1 | recode html..UTF-16)
+            genre=$(echo "$songs" | sed -n "$i"p | tr ">" "\n" | grep "</genre" | cut -d "<" -f 1 | recode html..UTF-16)
             imageurl=$(echo "$songs" | sed -n "$i"p | tr ">" "\n" | grep "</artwork-url" | cut -d "<" -f 1 | sed 's/large/t500x500/g')
             songID=$(echo "$songs" | sed -n "$i"p | tr " " "\n" | grep "</id>" | head -n 1 | cut -d ">" -f 2 | cut -d "<" -f 1)
             # DL
@@ -170,11 +170,11 @@ function downset() {
     for (( numcursong=1; numcursong <= $songcountset; numcursong++ ))
     do
         id=$(echo "$setsongs" | sed -n "$numcursong"p)
-        title=$(echo -e "$page" | grep data-sc-track | grep $id | grep -oE 'rel=.nofollow.>[^<]*' | sed 's/rel="nofollow">//' | sed 's/\\u0026/\&/g' | recode html..u8)
+        title=$(echo -e "$page" | grep data-sc-track | grep $id | grep -oE 'rel=.nofollow.>[^<]*' | sed 's/rel="nofollow">//' | sed 's/\\u0026/\&/g' | recode html..UTF-16)
         if [[ "$title" == "Play" ]] ; then
-        title=$(echo -e "$page" | grep $id | grep id | grep -oE "\"title\":\"[^\"]*" | sed 's/"title":"//' | sed 's/\\u0026/\&/g' | recode html..u8)
+        title=$(echo -e "$page" | grep $id | grep id | grep -oE "\"title\":\"[^\"]*" | sed 's/"title":"//' | sed 's/\\u0026/\&/g' | recode html..UTF-16)
         fi
-        artist=$(echo "$page" | grep -A3 $id | grep byArtist | cut -d"\"" -f2 | recode html..u8)
+        artist=$(echo "$page" | grep -A3 $id | grep byArtist | cut -d"\"" -f2 | recode html..UTF-16)
         filename=$(echo "$title".mp3 | tr '*/\?"<>|' '+       ' )      
         if [ -e "$filename" ]; then
             echo "[!] The song $filename has already been downloaded..."  && exit
@@ -189,8 +189,8 @@ function downset() {
         songpage=$(wget --max-redirect=1000 --trust-server-names --progress=bar -U -O- 'Mozilla/5.0' "$pageurl")
         fi
         imageurl=$(echo "$songpage" | tr ">" "\n" | grep -A1 '<div class="artwork-download-link"' | cut -d '"' -f 2 | tr " " "\n" | grep 'http' | sed 's/original/t500x500/g' | sed 's/png/jpg/g' )
-        genre=$(echo "$songpage" | tr ">" "\n" | grep -A1 '<span class="genre search-deprecation-notification" data="/tags/' | tr ' ' "\n" | grep '</span' | cut -d "<" -f 1 | recode html..u8)
-        album=$(echo "$page" | sed s/'<meta content='/\n/g | grep 'property="og:title"' | cut -d '=' -f 4 | cut -d '"' -f 4 | recode html..u8)
+        genre=$(echo "$songpage" | tr ">" "\n" | grep -A1 '<span class="genre search-deprecation-notification" data="/tags/' | tr ' ' "\n" | grep '</span' | cut -d "<" -f 1 | recode html..UTF-16)
+        album=$(echo "$page" | sed s/'<meta content='/\n/g | grep 'property="og:title"' | cut -d '=' -f 4 | cut -d '"' -f 4 | recode html..UTF-16)
         #------------------------#
         # DL
         if $curlinstalled; then
